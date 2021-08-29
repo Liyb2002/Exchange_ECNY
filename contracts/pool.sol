@@ -10,9 +10,10 @@ contract pool {
     address public token2;
     address public owner;
 
+    //_flateRate = token1Amount/token2Amount
     uint256 private _flatRate;
     uint256 private _curRate;
-    uint32  private timeStamp;
+    uint256 private timeStamp;
 
     bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)')));
 
@@ -23,6 +24,7 @@ contract pool {
         token2= _token2;
         owner= msg.sender;
         _flatRate= flatRate;
+        timeStamp=now;
     }
 
     //Help functions
@@ -33,8 +35,9 @@ contract pool {
         "token transfer failed");
     }
 
+
     //Modifiers
-    modifier rateCheck( ){
+    modifier rateCheck(){
         uint256 fluctuation = _flatRate.mul(2).div(100);
         require(_flatRate.sub(fluctuation) <  _curRate &&  _curRate < _flatRate.add(fluctuation),
         "price overflow");
@@ -65,7 +68,39 @@ contract pool {
         require(now > timeStamp + 5 days, "you need to wait for 5 days until next retrieve operation");
         _safeTransfer(token1, owner, token1amount);
         _safeTransfer(token2, owner, token1amount.mul(_curRate));
+        timeStamp=now;
         }
+
+
+    function swap(uint256 token1amount, uint256 token2amount)public rateCheck{
+        require(token1amount ==0 || token2amount==0, 
+        "You can only input one token");
+        (uint256 _reserve1, uint256 _reserve2) = getReserves(); 
+        uint256 k_origin = _reserve1.mul(_reserve2);
+        uint256 k_aug = k_origin.mul(100);
+
+        //Make sure which is the input token
+        bool token1Input = token1amount !=0 ? true : false;
+        if(token1Input){
+            require(ERC20(token1).transferFrom(msg.sender, address(this),token1amount));
+            uint256 token2Output = k_aug.div(_reserve1.add(token1amount)).sub(_reserve2);
+            //rateCheck
+            uint256 _curRateTempt = (_reserve1.add(token1amount)).div(_reserve2.sub(token2Output));
+            require(_flatRate.mul(98).div(100) <  _curRateTempt &&  _curRateTempt < _flatRate.mul(102).div(100),
+                    "Rate is unbalanced after swap. SWAP FAILED");
+            _safeTransfer(token2, msg.sender, token2Output);
+
+        }
+        else{
+            require(ERC20(token2).transferFrom(msg.sender, address(this),token2amount));
+            uint256 token1Output = k_aug.div(_reserve2.add(token2amount)).sub(_reserve1);
+             //rateCheck
+            uint256 _curRateTempt = (_reserve1.sub(token1Output)).div(_reserve2.add(token2amount));
+            require(_flatRate.mul(98).div(100) <  _curRateTempt &&  _curRateTempt < _flatRate.mul(102).div(100),
+                    "Rate is unbalanced after swap. SWAP FAILED");
+            _safeTransfer(token1, msg.sender, token1Output);
+        }
+    }
   
 
 }
