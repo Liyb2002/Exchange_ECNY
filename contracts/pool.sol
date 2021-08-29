@@ -14,6 +14,8 @@ contract pool {
     uint256 private _curRate;
     uint32  private timeStamp;
 
+    bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)')));
+
 
     constructor(address _token1, address _token2, 
         uint256 flatRate) public{
@@ -21,6 +23,14 @@ contract pool {
         token2= _token2;
         owner= msg.sender;
         _flatRate= flatRate;
+    }
+
+    //Help functions
+    function _safeTransfer(address token, address to, uint256 value)private{
+        (bool success, bytes memory data) = token.call(
+            abi.encodeWithSelector(SELECTOR, to, value));
+        require(success && (data.length ==0 || abi.decode(data, (bool))), 
+        "token transfer failed");
     }
 
     //Modifiers
@@ -33,11 +43,6 @@ contract pool {
 
     modifier onlyOwner(){
         require(msg.sender == owner, "only owner can do this operaiton");
-        _;
-    }
-
-    modifier timelock(){
-        require(now > timeStamp + 5 days, "you need to wait for 5 days until next retrieve operation");
         _;
     }
 
@@ -54,9 +59,13 @@ contract pool {
     uint256 token2amount = token1amount.mul(_curRate);
     require(ERC20(token2).transferFrom(msg.sender, address(this),token2amount), 
         "Not the right token2 amount");
-
-
     }
+
+    function retrieveLiquidity(uint256 token1amount) public onlyOwner {
+        require(now > timeStamp + 5 days, "you need to wait for 5 days until next retrieve operation");
+        _safeTransfer(token1, owner, token1amount);
+        _safeTransfer(token2, owner, token1amount.mul(_curRate));
+        }
   
 
 }
