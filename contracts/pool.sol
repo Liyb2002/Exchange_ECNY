@@ -17,7 +17,6 @@ contract pool {
 
     bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)')));
 
-
     constructor(address _token1, address _token2, 
         uint256 flatRate) public{
         token1= _token1;
